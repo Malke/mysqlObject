@@ -24,7 +24,7 @@ var mysqlObject = function(){
 		//connect
 		mysqlObject.prototype.connect = function(constantes, cache) {
 		
-			if (typeof cache === "String") this.cache = cache;
+			if (typeof cache === "string") this.cache = cache;
 			
 			if (constantes && typeof(constantes) === "object" && constantes['DB_HOST'] && constantes['DB_USER'] && constantes['DB_PASSWORD']) { 
 			
@@ -32,7 +32,7 @@ var mysqlObject = function(){
 				var mere = this;
 				
 				if (constantes['DB_PORT']) this.port = constantes['DB_PORT'];
-				console.log(mysql);
+				//console.log(mysql);
 				
 				//prepare connection
 				mysqlObject.instance = mysql.createConnection(
@@ -65,7 +65,7 @@ var mysqlObject = function(){
 		//addFields
 		mysqlObject.prototype.addFields = function(fields) {
 			
-			if (fields && typeof(fields) == "String") {
+			if (fields && typeof(fields) == "string") {
 				mysqlObject.Request['fields'].push(fields);
 			}
 			return false;
@@ -73,7 +73,7 @@ var mysqlObject = function(){
 		
 		//addFrom
 		mysqlObject.prototype.addFrom = function(from) {
-			if (from && typeof(from) == "String") {
+			if (from && typeof(from) == "string") {
 				mysqlObject.Request['froms'].push(from);			
 			}
 			return false;
@@ -81,9 +81,9 @@ var mysqlObject = function(){
 		
 		//addLeftJoin
 		mysqlObject.prototype.addLeftJoin = function(arg1, arg2) {
-			if (arg1 && arg2 && typeof(arg1) === "String" && typeof(arg2) === "String" ) {
+			if (arg1 && arg2 && typeof(arg1) === "string" && typeof(arg2) === "string" ) {
 				var table = arg1.split(".");
-				if (typeof(table[0]) === "String") {
+				if (typeof(table[0]) === "string") {
 					mysqlObject.Request['leftJoins'].push(util.format("LEFT JOIN %s ON %s = %s", table, arg1, arg2));
 				}
 			}
@@ -92,7 +92,7 @@ var mysqlObject = function(){
 		
 		//addWhere
 		mysqlObject.prototype.addWhere = function(arg1, arg2) {
-			if (typeof arg1 === "String") {
+			if (typeof arg1 === "string") {
 				if (!arg2) arg2 = "AND"
 				mysqlObject.Request['wheres'].push(util.format("%s %s", arg2,arg1));			
 			}
@@ -118,26 +118,19 @@ var mysqlObject = function(){
 						startRequest = true;
 					}
 					
-				});
-					
-					
-					}
-					
-				}		
-			
-			}
-			else if (typeof arg1 === "String") {
+				}
+			}		
+			else if (typeof arg1 === "string") {
 				this.queryTotal = arg1;
-				
 				startRequest = true;
-			
 			}
 			
 			if (startRequest == true) {
-				if (cache && typeof cache === "String") {
+				var foundinCache = false;
+				if (cache && typeof cache === "string") {
 					switch(cache) {
 						case "MEMCACHE":
-							if (typeof this.memcache === "Object") {
+							if (typeof this.memcache === "object") {
 								//convert in Base64
 								
 								var keyRequest = new Buffer(this.queryTotal).toString('base64');
@@ -155,9 +148,9 @@ var mysqlObject = function(){
 															reponse[keyRequest] = jsonResult;
 														}
  													}
-													catch(e) {}
+													catch(err) { err = true;}
 													
-													callback(response[keyRequest]);
+													callback(err, response[keyRequest]);
 												}
 											}
 											else {
@@ -179,61 +172,62 @@ var mysqlObject = function(){
 						break;
 						//other cache here... REDIS, APC...
 						
-					
-					
 					}
-			
 				
 				}
-
-				mysqlObject.instance.query(this.queryTotal, function(err, rows) {
-					if (!err) {
-					
-						if (cache) {
-							switch(cache) {
-								case "MEMCACHE":
-									if (typeof mysqlObject.memcache === "Object") {
-										//convert key base64
-										var keyRequest = new Buffer(mysqlObject.queryTotal).toString('base64');
-										
-										if (typeof keyRequest === "String") {
-											if (typeof rows !== "String") {
-												var rows_convert = JSON.stringify(rows);
+				if (false === foundinCache) {
+					mysqlObject.instance.query(this.queryTotal, function(err, rows) {
+						if (!err) {
+						
+							if (cache) {
+								switch(cache) {
+									case "MEMCACHE":
+										if (typeof mysqlObject.memcache === "object") {
+											//convert key base64
+											var keyRequest = new Buffer(mysqlObject.queryTotal).toString('base64');
+											
+											if (typeof keyRequest === "string") {
+												if (typeof rows !== "string") {
+													var rows_convert = JSON.stringify(rows);
+												}
+												mysqlObject.memcache.set(keyRequest, rows, { flags: 0, exptime: 0}, function(err, status) {
+														if (!err) {
+														
+														}
+														else {
+														
+														}
+													
+													});
 											}
-											mysqlObject.memcache.set(keyRequest, rows, { flags: 0, exptime: 0}, function(err, status) {
-													if (!err) {}
-												
-												});
 										}
-								break;
+									break;
+								}	
 							}
-								
-						}
-					
-					
-						if (typeof callback === "Function") {
-							if (rows) {
-								callback(rows);
+							if (typeof callback === "Function") {
+								if (rows) {
+									callback(err, rows);
+								}
+							}
+							else {
+								mere.ResultQuery = rows;
 							}
 						}
-						else {
-							mere.ResultQuery = rows;
+						else if (err) {
+							if (typeof callback === "Function") {
+								callback(false);
+							}
+							else {
+								mere.ResultQuery = false;
+								//display error ?
+							}
 						}
-					}
-					else if (err) {
-						if (typeof callback === "Function") {
-							callback(false);
-						}
-						else {
-							mere.ResultQuery = false;
-							//display error ?
-						}
-					}
-					
-				});
+						
+					});
+				}
 			
 			}
-			
+
 			
 		}
 		
@@ -244,6 +238,12 @@ var mysqlObject = function(){
 			mysqlObjet.instance.query(undefined, callback);
 			
 			
+			
+		}
+		
+		mysqlObject.prototype.reset = function() {
+			
+			this.Request = false;
 			
 		}
 	}
